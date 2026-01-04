@@ -1,0 +1,9 @@
+"terraform/.terraform/
+terraform/.terraform.*
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/.terraform.lock.hcl
+*.exe
+*.zip
+__pycache__/
+.env" | Out-File -FilePath .gitignore -Encoding utf8

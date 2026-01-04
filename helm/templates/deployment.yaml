@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: asterra-app
+spec:
+  serviceAccountName: asterra-app-sa  
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels: { app: asterra-app }
+  template:
+    metadata:
+      labels: { app: asterra-app }
+    spec:
+      containers:
+        - name: processor
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          env:
+            - name: DB_HOST
+              value: {{ .Values.db.host | quote }}
+            - name: DB_PASS
+              value: {{ .Values.db.password | quote }}
+            - name: S3_BUCKET
+              value: {{ .Values.s3.bucket | quote }}

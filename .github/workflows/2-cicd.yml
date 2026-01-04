@@ -1,0 +1,63 @@
+name: 2-CI-CD
+
+on:
+  workflow_run:
+    workflows: ["1-Infra-Create"]
+    types: [completed]
+
+jobs:
+  build-and-deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET }}
+          aws-region: us-east-1
+
+      # התקנת טרפורם על ה-Runner כדי שיוכל לקרוא Outputs
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_wrapper: false
+
+      - name: Extract Terraform Outputs
+        id: tf_outputs
+        run: |
+          cd terraform
+          terraform init
+          # שליפת המשתנים לתוך ה-Environment של ה-Runner
+          echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
+          echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
+          echo "DB_HOST=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
+          echo "IAM_ROLE_ARN=$(terraform output -raw app_iam_role_arn)" >> $GITHUB_ENV
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Build, Tag, and Push Image to ECR
+        run: |
+          docker build -t asterra-app ./app
+          docker tag asterra-app:latest ${{ env.ECR_URL }}:latest
+          docker push ${{ env.ECR_URL }}:latest
+
+      - name: Update EKS Kubeconfig
+        run: |
+          aws eks update-kubeconfig --name asterra-cluster --region us-east-1
+
+      - name: Deploy to EKS with Helm
+        run: |
+          helm upgrade --install asterra-app ./helm \
+            --set image.repository=${{ env.ECR_URL }} \
+            --set db.host=${{ env.DB_HOST }} \
+            --set db.password=${{ secrets.DB_PASSWORD }} \
+            --set s3.bucket=${{ env.S3_BUCKET }} \
+            --set iam.roleArn=${{ env.IAM_ROLE_ARN }} \
+            --wait
