@@ -66,3 +66,8 @@ jobs:
           docker build -t asterra-app ./app
           docker tag asterra-app:latest ${{ env.ECR_URL }}:latest
           docker push ${{ env.ECR_URL }}:latest
+      - name: Deploy to EKS
+        run: |
+          kubectl set env deployment/asterra-app \
+            DATABASE_URL=${{ steps.tf_outputs.outputs.rds_endpoint }} \
+            S3_BUCKET_NAME=${{ steps.tf_outputs.outputs.s3_bucket }}    
