@@ -35,7 +35,7 @@ module "storage" {
 module "db" {
   source      = "./modules/db"
   vpc_id      = module.vpc.vpc_id
-  subnet_ids  = module.vpc.private_subnets
+  subnet_ids  = subnet_ids = [aws_subnet.private_1.id, aws_subnet.private_2.id] 
   db_password = var.db_password
 }
 
@@ -43,7 +43,7 @@ module "eks" {
   source  = "terraform-aws-modules/eks/aws"
   version = "~> 19.0"
   cluster_name    = "asterra-cluster"
-  cluster_version = "1.27"
+  cluster_version = "1.31"
   vpc_id          = module.vpc.vpc_id
   subnet_ids      = module.vpc.private_subnets
   
