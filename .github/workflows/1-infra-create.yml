@@ -19,6 +19,9 @@ jobs:
           terraform_wrapper: false
       - name: Terraform Apply
         run: |
-          cd terraform
+          cd terraform || { echo "Directory 'terraform' not found"; exit 1; }
+          
+          echo "Listing files inside terraform folder:"
+          ls -F
           terraform init
           terraform apply -auto-approve
