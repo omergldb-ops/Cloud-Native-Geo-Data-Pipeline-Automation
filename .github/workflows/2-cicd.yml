@@ -7,6 +7,7 @@ on:
 
 jobs:
   build-and-deploy:
+    # הריצה תתבצע רק אם ה-Workflow של התשתית הצליח
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     
@@ -15,28 +16,34 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET }}
           aws-region: us-east-1
 
-      # התקנת טרפורם על ה-Runner כדי שיוכל לקרוא Outputs
+      # התקנת Terraform CLI על ה-Runner
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
+        uses: hashicorp/setup-terraform@v3
         with:
+          terraform_version: "1.5.0"
           terraform_wrapper: false
 
+      # שליפת נתונים דינמיים מהתשתית שנוצרה
       - name: Extract Terraform Outputs
         id: tf_outputs
         run: |
           cd terraform
-          terraform init
-          # שליפת המשתנים לתוך ה-Environment של ה-Runner
+          terraform init -input=false
+          # שליפת המשתנים והזרקתם ל-Environment של ה-Job
           echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
           echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
           echo "DB_HOST=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
           echo "IAM_ROLE_ARN=$(terraform output -raw app_iam_role_arn)" >> $GITHUB_ENV
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET }}
+          AWS_REGION: us-east-1
 
       - name: Login to Amazon ECR
         id: login-ecr
@@ -44,6 +51,7 @@ jobs:
 
       - name: Build, Tag, and Push Image to ECR
         run: |
+          # שימוש ב-ECR_URL ששלפנו מהטרפורם
           docker build -t asterra-app ./app
           docker tag asterra-app:latest ${{ env.ECR_URL }}:latest
           docker push ${{ env.ECR_URL }}:latest
@@ -54,6 +62,7 @@ jobs:
 
       - name: Deploy to EKS with Helm
         run: |
+          # הזרקת כל הנתונים הדינמיים והסודות לתוך ה-Helm Chart
           helm upgrade --install asterra-app ./helm \
             --set image.repository=${{ env.ECR_URL }} \
             --set db.host=${{ env.DB_HOST }} \
