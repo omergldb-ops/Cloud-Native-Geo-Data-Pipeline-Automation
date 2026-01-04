@@ -9,7 +9,12 @@ variable "subnet_ids" {
 }
 
 variable "db_password" {
-  type        = string
-  sensitive   = true
-  description = "Password for the database admin user"
+  type      = string
+  sensitive = true
+  
+  validation {
+    # שים לב: בתוך condition משתמשים ב-self או בשם המשתנה בלי var.
+    condition     = length(var.db_password) >= 8
+    error_message = "The DB password must be at least 8 characters long."
+  }
 }
