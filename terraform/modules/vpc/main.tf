@@ -9,5 +9,3 @@ resource "aws_subnet" "private" {
   availability_zone = "us-east-1a"
 }
 resource "aws_internet_gateway" "igw" { vpc_id = aws_vpc.this.id }
-output "vpc_id" { value = aws_vpc.this.id }
-output "private_subnets" { value = aws_subnet.private[*].id }
