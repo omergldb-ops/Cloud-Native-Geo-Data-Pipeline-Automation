@@ -7,7 +7,6 @@ on:
 
 jobs:
   build-and-deploy:
-    # הריצה תתבצע רק אם ה-Workflow של התשתית הצליח
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     
@@ -22,51 +21,48 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET }}
           aws-region: us-east-1
 
-      # התקנת Terraform CLI על ה-Runner
-      - name: Setup Terraform
+      # שלב התקנה קריטי - שים לב שהוא שלב נפרד לחלוטין
+      - name: Install Terraform CLI
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.5.0"
           terraform_wrapper: false
 
-      # שליפת נתונים דינמיים מהתשתית שנוצרה
+      # שלב בדיקה - כדי לראות אם המערכת רואה את טרפורם
+      - name: Debug Path
+        run: |
+          which terraform || echo "Terraform NOT found in PATH"
+          terraform --version || echo "Terraform command failed"
+
       - name: Extract Terraform Outputs
         id: tf_outputs
         run: |
+          # וודא שהתיקייה terraform קיימת ברפוסיטורי שלך
           cd terraform
           terraform init -input=false
-          # שליפת המשתנים והזרקתם ל-Environment של ה-Job
-          echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
-          echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
-          echo "DB_HOST=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
-          echo "IAM_ROLE_ARN=$(terraform output -raw app_iam_role_arn)" >> $GITHUB_ENV
+          
+          # חילוץ נתונים
+          ECR_URL=$(terraform output -raw ecr_url)
+          DB_HOST=$(terraform output -raw rds_endpoint)
+          S3_BUCKET=$(terraform output -raw s3_bucket)
+          IAM_ROLE=$(terraform output -raw app_iam_role_arn)
+          
+          # הזרקה ל-GITHUB_ENV לשימוש בשלבים הבאים
+          echo "ECR_URL=$ECR_URL" >> $GITHUB_ENV
+          echo "DB_HOST=$DB_HOST" >> $GITHUB_ENV
+          echo "S3_BUCKET=$S3_BUCKET" >> $GITHUB_ENV
+          echo "IAM_ROLE_ARN=$IAM_ROLE" >> $GITHUB_ENV
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_KEY }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET }}
           AWS_REGION: us-east-1
 
+      # המשך ה-Pipeline (ECR Login, Build, Helm...)
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Build, Tag, and Push Image to ECR
+      - name: Build and Push Image
         run: |
-          # שימוש ב-ECR_URL ששלפנו מהטרפורם
           docker build -t asterra-app ./app
           docker tag asterra-app:latest ${{ env.ECR_URL }}:latest
           docker push ${{ env.ECR_URL }}:latest
-
-      - name: Update EKS Kubeconfig
-        run: |
-          aws eks update-kubeconfig --name asterra-cluster --region us-east-1
-
-      - name: Deploy to EKS with Helm
-        run: |
-          # הזרקת כל הנתונים הדינמיים והסודות לתוך ה-Helm Chart
-          helm upgrade --install asterra-app ./helm \
-            --set image.repository=${{ env.ECR_URL }} \
-            --set db.host=${{ env.DB_HOST }} \
-            --set db.password=${{ secrets.DB_PASSWORD }} \
-            --set s3.bucket=${{ env.S3_BUCKET }} \
-            --set iam.roleArn=${{ env.IAM_ROLE_ARN }} \
-            --wait
