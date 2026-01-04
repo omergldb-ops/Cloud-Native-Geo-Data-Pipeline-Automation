@@ -8,7 +8,7 @@ resource "aws_subnet" "private" {
 
   vpc_id = aws_vpc.this.id
 
-  cidr_block = length(var.private_subnet_cidrs) > 0 ? var.private_subnet_cidrs[count.index] : cidrsubnet(aws_vpc.this.cidr_block, 8, count.index)
+  cidr_block = length(var.private_subnet_cidrs) > 0 ? var.private_subnet_cidrs[count.index] : cidrsubnet(aws_vpc.this.cidr_block, 8, var.private_subnet_start_index + count.index)
 
   availability_zone = element(var.availability_zones, count.index)
 

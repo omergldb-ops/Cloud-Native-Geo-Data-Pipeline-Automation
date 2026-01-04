@@ -21,3 +21,9 @@ variable "availability_zones" {
   default = ["us-east-1a", "us-east-1b"]
   description = "Availability zones to place subnets in; length should match private subnet count when providing explicit cidrs."
 }
+
+variable "private_subnet_start_index" {
+  type        = number
+  default     = 10
+  description = "Starting network number within the VPC to generate private subnets with cidrsubnet(). Set to a value that avoids existing subnet CIDRs in your account."
+}
