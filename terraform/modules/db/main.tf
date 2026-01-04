@@ -17,7 +17,7 @@ resource "aws_db_instance" "this" {
   engine_version = "15"
   instance_class = "db.t3.micro"
   db_name = "asterradb"
-  username = "admin"
+  username = "dbadmin"
   password = var.db_password
   db_subnet_group_name = aws_db_subnet_group.this.name
   vpc_security_group_ids = [aws_security_group.db.id]
