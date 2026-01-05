@@ -3,7 +3,7 @@ output "app_role_arn" {
 }
 
 output "ecr_url" {
-  value = module.ecr.repository_url
+  value = eks.repository_url
 }
 
 output "rds_endpoint" {
