@@ -3,21 +3,22 @@ kind: Deployment
 metadata:
   name: asterra-app
 spec:
-  serviceAccountName: asterra-app-sa  
-  replicas: {{ .Values.replicaCount }}
+  replicas: 1
   selector:
-    matchLabels: { app: asterra-app }
+    matchLabels:
+      app: asterra-app
   template:
     metadata:
-      labels: { app: asterra-app }
+      labels:
+        app: asterra-app
     spec:
       containers:
-        - name: processor
+        - name: asterra-app
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 80
           env:
-            - name: DB_HOST
-              value: {{ .Values.db.host | quote }}
-            - name: DB_PASS
-              value: {{ .Values.db.password | quote }}
-            - name: S3_BUCKET
-              value: {{ .Values.s3.bucket | quote }}
+            - name: DATABASE_URL
+              value: "{{ .Values.env.databaseUrl }}"
+            - name: S3_BUCKET_NAME
+              value: "{{ .Values.env.s3Bucket }}"

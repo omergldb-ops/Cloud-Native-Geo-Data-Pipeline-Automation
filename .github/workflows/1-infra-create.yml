@@ -2,9 +2,8 @@ name: "Asterra-Full-Pipeline"
 
 on:
   push:
-    branches:
-      - main
-  workflow_dispatch: # מאפשר הרצה ידנית מהממשק של GitHub
+    branches: [ main ]
+  workflow_dispatch:
 
 permissions:
   id-token: write
@@ -13,16 +12,13 @@ permissions:
 jobs:
   terraform-and-deploy:
     runs-on: ubuntu-latest
-    
-    # הגדרת משתני סביבה לכל ה-Job (שימוש נכון ב-Secrets ללא $)
     env:
-      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }} # $ צמוד לסוגריים
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # התחברות ל-AWS (תיקון תחביר ה-Secrets והרווחים)
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -30,65 +26,45 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET }}
           aws-region: us-east-1
 
-      # התקנת Terraform מודרנית למניעת שגיאת "unsupported checkable object"
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "1.7.0"
           terraform_wrapper: false
 
-      # שלב התשתית - יצירת VPC, NAT Gateway ו-EKS
       - name: Terraform Init & Apply
         run: |
           cd terraform
           terraform init
           terraform apply -auto-approve
 
-      # שליפת נתונים דינמיים מה-Terraform
-      - name: Extract Terraform Outputs
-        id: tf_outputs
+      - name: Extract Outputs
         run: |
           cd terraform
           echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
           echo "DB_HOST=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
           echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
 
-      # בנייה ודחיפה של האפליקציה ל-ECR
-      - name: Login to Amazon ECR
+      - name: Login to ECR & Push Image
         uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and Push Image
+      
+      - name: Build and Push
         run: |
-          # הנחה שקובץ ה-Dockerfile נמצא בתיקיית app
           docker build -t asterra-app ./app
           docker tag asterra-app:latest ${{ env.ECR_URL }}:latest
           docker push ${{ env.ECR_URL }}:latest
 
-      # חיבור ל-EKS לצורך פקודות kubectl
-      - name: Update Kubeconfig
+      - name: Deploy with Helm
         run: |
           aws eks update-kubeconfig --name asterra-cluster --region us-east-1
+          helm upgrade --install asterra-app ./helm \
+            --set image.repository=${{ env.ECR_URL }} \
+            --set image.tag=latest \
+            --set env.databaseUrl=${{ env.DB_HOST }} \
+            --set env.s3Bucket=${{ env.S3_BUCKET }}
 
-      # פריסה ועדכון הגדרות האפליקציה ב-Kubernetes
-      - name: Deploy to EKS
+      - name: Smoke Test
         run: |
-          kubectl apply -f k8s/
-          
-          # עדכון ה-Image ומשתני הסביבה (Database ו-S3)
-          kubectl set image deployment/asterra-app asterra-app=${{ env.ECR_URL }}:latest
-          kubectl set env deployment/asterra-app \
-            DATABASE_URL=${{ env.DB_HOST }} \
-            S3_BUCKET_NAME=${{ env.S3_BUCKET }}
-
-      # Smoke Test - בדיקה שהאפליקציה חיה ומגיבה
-      - name: Wait for Deployment & Smoke Test
-        run: |
-          echo "Waiting for pods to be ready..."
           kubectl rollout status deployment/asterra-app --timeout=180s
-          
-          echo "Running health check inside cluster..."
-          # הרצת Pod זמני שבודק את ה-Service הפנימי
           kubectl run smoke-test-${{ github.run_id }} --image=curlimages/curl --restart=Never --rm -i -- \
-            curl -s -f --connect-timeout 5 http://asterra-app-service/health || (echo "Smoke test failed!" && exit 1)
-          
-          echo "Pipeline finished successfully!"
+            curl -s -f --connect-timeout 5 http://asterra-app-service/health || (echo "FAILED" && exit 1)

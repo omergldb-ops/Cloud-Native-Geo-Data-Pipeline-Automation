@@ -1,0 +1,13 @@
+# ערכי ברירת מחדל שידרסו על ידי ה-Pipeline
+image:
+  repository: "" # יתמלא אוטומטית מה-ECR_URL
+  tag: "latest"
+  pullPolicy: Always
+
+env:
+  databaseUrl: "" # יתמלא מה-DB_HOST
+  s3Bucket: ""    # יתמלא מה-S3_BUCKET
+
+service:
+  type: ClusterIP
+  port: 80
