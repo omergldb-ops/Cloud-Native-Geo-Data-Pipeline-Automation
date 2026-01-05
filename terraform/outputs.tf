@@ -3,13 +3,13 @@ output "app_role_arn" {
 }
 
 output "ecr_url" {
-  value = module.ecr.repository_url # וודא שזה השם אצלך
+  value = module.ecr.repository_url
 }
 
 output "rds_endpoint" {
-  value = module.db.db_instance_endpoint # וודא שזה השם אצלך
+  value = module.db.db_endpoint 
 }
 
 output "s3_bucket" {
-  value = module.storage.s3_bucket_name # וודא שזה השם אצלך
+  value = module.storage.s3_bucket_name 
 }
