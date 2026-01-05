@@ -9,7 +9,8 @@ on:
 env:
   AWS_REGION: us-east-1
   ECR_REPOSITORY: asterra-app
-  EKS_CLUSTER_NAME: asterra-cluster
+  EKS_CLUSTER_NAME: asterra-custer
+  TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
 
 jobs:
   terraform-and-deploy:
