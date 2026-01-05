@@ -1,4 +1,10 @@
-replicaCount: 2
-image: { repository: "", tag: "latest" }
-db: { host: "", password: "" }
-s3: { bucket: "" }
+image:
+  repository: ""
+  tag: "latest"
+
+env:
+  databaseUrl: ""
+  s3Bucket: ""
+
+iam:
+  roleArn: ""
