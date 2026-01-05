@@ -15,6 +15,12 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      # --- הוספת שלב התקנת Terraform ---
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false # חשוב כדי שנוכל לחלץ Outputs ל-env
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -31,7 +37,7 @@ jobs:
           terraform init
           terraform apply -auto-approve
           
-          # מיפוי ה-Outputs שלכם למשתני סביבה ב-Pipeline
+          # Mapping your specific Terraform outputs to GitHub ENV
           echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
           echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
           echo "DB_HOST=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
@@ -48,15 +54,12 @@ jobs:
 
       - name: Deploy to EKS
         run: |
-          # התחברות ל-Cluster באמצעות ה-Output של ה-Terraform
           aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
           
-          # יצירת ה-Secret ב-Kubernetes מתוך ה-GitHub Secret
           kubectl create secret generic db-secret \
             --from-literal=password='${{ secrets.DB_PASSWORD }}' \
             --dry-run=client -o yaml | kubectl apply -f -
 
-          # פריסה עם Helm
           helm upgrade --install asterra-app ./helm \
             --set image.repository=${{ env.ECR_URL }} \
             --set image.tag=latest \
