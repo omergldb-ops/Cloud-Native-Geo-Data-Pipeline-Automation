@@ -12,7 +12,6 @@ spec:
       labels:
         app: asterra-app
     spec:
-      # התיקון הקריטי: serviceAccountName חייב להיות כאן (בתוך ה-Pod Spec)
       serviceAccountName: asterra-app-sa
       containers:
         - name: asterra-app
