@@ -14,7 +14,7 @@ spec:
     spec:
       serviceAccountName: asterra-app-sa
       containers:
-        - name: asterra-app
+        - name:  asterra-app
           image: {{ .Values.image.repository | quote }}:{{ .Values.image.tag | quote }}
           ports:
             - containerPort: 80
