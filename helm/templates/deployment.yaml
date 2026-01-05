@@ -12,13 +12,15 @@ spec:
       labels:
         app: asterra-app
     spec:
+      # התיקון הקריטי: serviceAccountName חייב להיות כאן (בתוך ה-Pod Spec)
+      serviceAccountName: asterra-app-sa
       containers:
         - name: asterra-app
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: {{ .Values.image.repository | quote }}:{{ .Values.image.tag | quote }}
           ports:
             - containerPort: 80
           env:
             - name: DATABASE_URL
-              value: "{{ .Values.env.databaseUrl }}"
+              value: {{ .Values.env.databaseUrl | quote }}
             - name: S3_BUCKET_NAME
-              value: "{{ .Values.env.s3Bucket }}"
+              value: {{ .Values.env.s3Bucket | quote }}
