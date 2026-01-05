@@ -1,67 +1,56 @@
-name: "Asterra-Full-Pipeline"
+name: Asterra Infra and Deploy
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    branches:
+      - main
 
-permissions:
-  id-token: write
-  contents: read
+env:
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: asterra-app
 
 jobs:
   terraform-and-deploy:
     runs-on: ubuntu-latest
-    env:
-      TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
-
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_KEY }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET }}
-          aws-region: us-east-1
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.7.0"
-          terraform_wrapper: false
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init & Apply
+        id: tf
         run: |
           cd terraform
-          rm -rf .terraform
-          terraform init -reconfigure
+          terraform init
           terraform apply -auto-approve
+          echo "DB_HOST=$(terraform output -raw rds_hostname)" >> $GITHUB_ENV
+          echo "S3_BUCKET=$(terraform output -raw s3_bucket_name)" >> $GITHUB_ENV
+          echo "APP_ROLE_ARN=$(terraform output -raw iam_role_arn)" >> $GITHUB_ENV
+          echo "ECR_URL=$(terraform output -raw ecr_repository_url)" >> $GITHUB_ENV
 
-      - name: Extract Outputs
-        run: |
-          cd terraform
-          # שליפת הנתונים מטרפורם והכנסתם ל-Environment Variables של ה-Runner
-          echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
-          echo "DB_HOST=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
-          echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
-          echo "APP_ROLE_ARN=$(terraform output -raw app_role_arn)" >> $GITHUB_ENV
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
 
-      - name: Login to ECR & Push Image
-        uses: aws-actions/amazon-ecr-login@v2
-      
-      - name: Build and Push
+      - name: Build and Push Docker Image
         run: |
-          docker build -t asterra-app ./app
-          docker tag asterra-app:latest ${{ env.ECR_URL }}:latest
+          docker build -t ${{ env.ECR_URL }}:latest .
           docker push ${{ env.ECR_URL }}:latest
 
-      - name: Deploy with Helm
+      - name: Deploy to EKS
         run: |
-          aws eks update-kubeconfig --name asterra-cluster --region us-east-1
+          aws eks update-kubeconfig --name asterra-cluster --region ${{ env.AWS_REGION }}
           
-          # שימוש ב-Helm עם הזרקת ה-Role ARN שחילצנו
+          kubectl create secret generic db-secret \
+            --from-literal=password='${{ secrets.DB_PASSWORD }}' \
+            --dry-run=client -o yaml | kubectl apply -f -
+
           helm upgrade --install asterra-app ./helm \
             --set image.repository=${{ env.ECR_URL }} \
             --set image.tag=latest \
@@ -71,6 +60,10 @@ jobs:
 
       - name: Smoke Test
         run: |
-          kubectl rollout status deployment/asterra-app --timeout=180s
-          kubectl run smoke-test-${{ github.run_id }} --image=curlimages/curl --restart=Never --rm -i -- \
-            curl -s -f --connect-timeout 5 http://asterra-app-service/health || (echo "FAILED" && exit 1)
+          kubectl rollout status deployment/asterra-app --timeout=90s
+          
+          echo "Waiting for pod to be ready for curl test..."
+          sleep 10
+          
+          POD_NAME=$(kubectl get pods -l app=asterra-app -o jsonpath="{.items[0].metadata.name}")
+          kubectl exec $POD_NAME -- curl -s http://localhost:80/health || exit 1

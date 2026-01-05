@@ -23,3 +23,8 @@ spec:
               value: {{ .Values.env.databaseUrl | quote }}
             - name: S3_BUCKET_NAME
               value: {{ .Values.env.s3Bucket | quote }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: db-secret
+                  key: password
