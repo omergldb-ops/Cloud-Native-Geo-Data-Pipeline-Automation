@@ -11,5 +11,5 @@ output "rds_endpoint" {
 }
 
 output "s3_bucket" {
-  value = module.s3.bucket_name # וודא שזה השם אצלך
+  value = module.storage.s3_bucket_name # וודא שזה השם אצלך
 }
