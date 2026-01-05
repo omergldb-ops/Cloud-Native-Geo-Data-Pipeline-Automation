@@ -15,11 +15,10 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      # --- הוספת שלב התקנת Terraform ---
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_wrapper: false # חשוב כדי שנוכל לחלץ Outputs ל-env
+          terraform_wrapper: false
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -36,8 +35,6 @@ jobs:
           cd terraform
           terraform init
           terraform apply -auto-approve
-          
-          # Mapping your specific Terraform outputs to GitHub ENV
           echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
           echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
           echo "DB_HOST=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
@@ -49,13 +46,15 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          docker build -t ${{ env.ECR_URL }}:latest .
+          # Building from the 'app' directory context
+          docker build -t ${{ env.ECR_URL }}:latest ./app
           docker push ${{ env.ECR_URL }}:latest
 
       - name: Deploy to EKS
         run: |
           aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
           
+          # Create Kubernetes Secret from GitHub Secret
           kubectl create secret generic db-secret \
             --from-literal=password='${{ secrets.DB_PASSWORD }}' \
             --dry-run=client -o yaml | kubectl apply -f -
