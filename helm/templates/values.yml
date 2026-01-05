@@ -11,3 +11,5 @@ env:
 service:
   type: ClusterIP
   port: 80
+iam:
+  roleArn: ""  

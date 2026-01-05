@@ -29,7 +29,7 @@ jobs:
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: "1.7.0" # גרסה חדשה פותרת את השגיאה מהלוג שלך
+          terraform_version: "1.7.0"
           terraform_wrapper: false
 
       - name: Terraform Init & Apply
@@ -42,9 +42,11 @@ jobs:
       - name: Extract Outputs
         run: |
           cd terraform
+          # שליפת הנתונים מטרפורם והכנסתם ל-Environment Variables של ה-Runner
           echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
           echo "DB_HOST=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
           echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
+          echo "APP_ROLE_ARN=$(terraform output -raw app_role_arn)" >> $GITHUB_ENV
 
       - name: Login to ECR & Push Image
         uses: aws-actions/amazon-ecr-login@v2
@@ -58,8 +60,17 @@ jobs:
       - name: Deploy with Helm
         run: |
           aws eks update-kubeconfig --name asterra-cluster --region us-east-1
+          
+          # שימוש ב-Helm עם הזרקת ה-Role ARN שחילצנו
           helm upgrade --install asterra-app ./helm \
             --set image.repository=${{ env.ECR_URL }} \
             --set image.tag=latest \
             --set env.databaseUrl=${{ env.DB_HOST }} \
-            --set env.s3Bucket=${{ env.S3_BUCKET }}
+            --set env.s3Bucket=${{ env.S3_BUCKET }} \
+            --set iam.roleArn=${{ env.APP_ROLE_ARN }}
+
+      - name: Smoke Test
+        run: |
+          kubectl rollout status deployment/asterra-app --timeout=180s
+          kubectl run smoke-test-${{ github.run_id }} --image=curlimages/curl --restart=Never --rm -i -- \
+            curl -s -f --connect-timeout 5 http://asterra-app-service/health || (echo "FAILED" && exit 1)
