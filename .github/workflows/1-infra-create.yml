@@ -35,9 +35,15 @@ jobs:
           cd terraform
           terraform init
           terraform apply -auto-approve
+          
+          # Capture the raw output (contains :5432)
+          RAW_ENDPOINT=$(terraform output -raw rds_endpoint)
+          # Strip the port so psycopg2 can resolve the hostname
+          CLEAN_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
+          
           echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
           echo "S3_BUCKET=$(terraform output -raw s3_bucket)" >> $GITHUB_ENV
-          echo "DB_HOST=$(terraform output -raw rds_endpoint)" >> $GITHUB_ENV
+          echo "DB_HOST=$CLEAN_HOST" >> $GITHUB_ENV
           echo "APP_ROLE_ARN=$(terraform output -raw app_role_arn)" >> $GITHUB_ENV
           echo "CLUSTER_NAME=$(terraform output -raw cluster_name)" >> $GITHUB_ENV
 
@@ -66,15 +72,13 @@ jobs:
 
       - name: Smoke Test
         run: |
-          # Increased timeout to 180s to allow for image pull and node scaling
           echo "Waiting for deployment rollout..."
           if ! kubectl rollout status deployment/asterra-app --timeout=180s; then
             echo "Deployment failed! Printing logs for debugging:"
-            kubectl logs deployment/asterra-app --tail=50
-            kubectl describe deployment asterra-app
+            NEW_POD=$(kubectl get pods -l app=asterra-app --sort-by=.metadata.creationTimestamp -o name | tail -n 1)
+            kubectl logs $NEW_POD
             exit 1
           fi
           
           POD_NAME=$(kubectl get pods -l app=asterra-app -o jsonpath="{.items[0].metadata.name}")
-          echo "Testing health endpoint on $POD_NAME..."
           kubectl exec $POD_NAME -- curl -s http://localhost:80/health || exit 1
