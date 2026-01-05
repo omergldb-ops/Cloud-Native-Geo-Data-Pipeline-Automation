@@ -19,7 +19,6 @@ resource "aws_iam_role" "app_role" {
     ]
   })
 }
-
 resource "aws_iam_role_policy" "s3_access" {
   name = "asterra-s3-policy"
   role = aws_iam_role.app_role.id
@@ -29,24 +28,12 @@ resource "aws_iam_role_policy" "s3_access" {
     Statement = [
       {
         Effect   = "Allow"
-        Action   = ["s3:ListBucket", "s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
-        Resource = [
-          "arn:aws:s3:::${var.bucket_name}",
-          "arn:aws:s3:::${var.bucket_name}/*"
+         Action   = [
+          "s3:ListBucket",
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject"
         ]
-      }
-    ]
-  })
-}
-  name = "asterra-s3-policy"
-  role = aws_iam_role.app_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["s3:ListBucket", "s3:GetObject", "s3:DeleteObject"]
         Resource = [
           "arn:aws:s3:::${var.bucket_name}",
           "arn:aws:s3:::${var.bucket_name}/*"
