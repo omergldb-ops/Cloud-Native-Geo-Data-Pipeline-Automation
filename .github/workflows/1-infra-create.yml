@@ -25,7 +25,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET }}
-          aws-region: "us-east-1"
+          aws-region: ${{ env.AWS_REGION }}
 
       - name: Terraform Init & Apply
         id: tf
@@ -46,7 +46,6 @@ jobs:
 
       - name: Build and Push Docker Image
         run: |
-          # Building from the 'app' directory context
           docker build -t ${{ env.ECR_URL }}:latest ./app
           docker push ${{ env.ECR_URL }}:latest
 
@@ -54,7 +53,6 @@ jobs:
         run: |
           aws eks update-kubeconfig --name ${{ env.CLUSTER_NAME }} --region ${{ env.AWS_REGION }}
           
-          # Create Kubernetes Secret from GitHub Secret
           kubectl create secret generic db-secret \
             --from-literal=password='${{ secrets.DB_PASSWORD }}' \
             --dry-run=client -o yaml | kubectl apply -f -
@@ -68,6 +66,15 @@ jobs:
 
       - name: Smoke Test
         run: |
-          kubectl rollout status deployment/asterra-app --timeout=90s
+          # Increased timeout to 180s to allow for image pull and node scaling
+          echo "Waiting for deployment rollout..."
+          if ! kubectl rollout status deployment/asterra-app --timeout=180s; then
+            echo "Deployment failed! Printing logs for debugging:"
+            kubectl logs deployment/asterra-app --tail=50
+            kubectl describe deployment asterra-app
+            exit 1
+          fi
+          
           POD_NAME=$(kubectl get pods -l app=asterra-app -o jsonpath="{.items[0].metadata.name}")
+          echo "Testing health endpoint on $POD_NAME..."
           kubectl exec $POD_NAME -- curl -s http://localhost:80/health || exit 1
