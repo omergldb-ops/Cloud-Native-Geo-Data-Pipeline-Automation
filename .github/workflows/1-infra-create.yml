@@ -62,7 +62,6 @@ jobs:
           kubectl create secret generic db-secret \
             --from-literal=password='${{ secrets.DB_PASSWORD }}' \
             --dry-run=client -o yaml | kubectl apply -f -
-
           helm upgrade --install asterra-app ./helm \
             --set image.repository=${{ env.ECR_URL }} \
             --set image.tag=latest \
