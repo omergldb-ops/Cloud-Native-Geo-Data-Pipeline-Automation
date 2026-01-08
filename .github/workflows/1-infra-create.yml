@@ -66,8 +66,8 @@ jobs:
           helm upgrade --install asterra-app ./helm \
             --set image.repository=${{ env.ECR_URL }} \
             --set image.tag=latest \
-            --set env.databaseUrl=${{ env.DB_HOST }} \
-            --set env.databaseName=${{ env.DB_NAME }} \
-            --set env.databaseUser=${{ env.DB_USER }} \
-            --set env.s3Bucket=${{ env.S3_BUCKET }} \
-            --set iam.roleArn=${{ env.APP_ROLE_ARN }}
+            --set env.DB_HOST=${{ env.DB_HOST }} \
+            --set env.DB_NAME=${{ env.DB_NAME }} \
+            --set env.DB_USER=${{ env.DB_USER }} \
+            --set env.S3_BUCKET=${{ env.S3_BUCKET }} \
+            --set env.PGSSLMODE=disable
