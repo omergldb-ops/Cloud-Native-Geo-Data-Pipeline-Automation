@@ -15,7 +15,8 @@ spec:
       serviceAccountName: asterra-app-sa
       containers:
         - name: asterra-app
-          image: {{ .Values.image.repository | quote }}:{{ .Values.image.tag | quote }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
           env:
@@ -34,3 +35,15 @@ spec:
                 secretKeyRef:
                   name: db-secret
                   key: password
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 45
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 80
+            initialDelaySeconds: 20
+            periodSeconds: 15
