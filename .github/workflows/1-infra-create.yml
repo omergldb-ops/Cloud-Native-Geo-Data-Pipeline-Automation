@@ -69,4 +69,4 @@ jobs:
             --set env.DB_NAME=${{ env.DB_NAME }} \
             --set env.DB_USER=${{ env.DB_USER }} \
             --set env.S3_BUCKET=${{ env.S3_BUCKET }} \
-            --set env.PGSSLMODE=require
+            --set env.PGSSLMODE=require 
