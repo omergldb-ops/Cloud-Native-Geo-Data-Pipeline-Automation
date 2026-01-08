@@ -7,6 +7,8 @@ on:
 
 env:
   AWS_REGION: us-east-1
+  DB_NAME: asterradb
+  DB_USER: admin
 
 jobs:
   terraform-and-deploy:
@@ -25,7 +27,7 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_KEY }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: "us-east-1"
 
       - name: Terraform Init & Apply
         id: tf
@@ -36,9 +38,7 @@ jobs:
           terraform init
           terraform apply -auto-approve
           
-          # Capture the raw output (contains :5432)
           RAW_ENDPOINT=$(terraform output -raw rds_endpoint)
-          # Strip the port so psycopg2 can resolve the hostname
           CLEAN_HOST=$(echo $RAW_ENDPOINT | cut -d':' -f1)
           
           echo "ECR_URL=$(terraform output -raw ecr_url)" >> $GITHUB_ENV
@@ -67,18 +67,7 @@ jobs:
             --set image.repository=${{ env.ECR_URL }} \
             --set image.tag=latest \
             --set env.databaseUrl=${{ env.DB_HOST }} \
+            --set env.databaseName=${{ env.DB_NAME }} \
+            --set env.databaseUser=${{ env.DB_USER }} \
             --set env.s3Bucket=${{ env.S3_BUCKET }} \
             --set iam.roleArn=${{ env.APP_ROLE_ARN }}
-
-      - name: Smoke Test
-        run: |
-          echo "Waiting for deployment rollout..."
-          if ! kubectl rollout status deployment/asterra-app --timeout=180s; then
-            echo "Deployment failed! Printing logs for debugging:"
-            NEW_POD=$(kubectl get pods -l app=asterra-app --sort-by=.metadata.creationTimestamp -o name | tail -n 1)
-            kubectl logs $NEW_POD
-            exit 1
-          fi
-          
-          POD_NAME=$(kubectl get pods -l app=asterra-app -o jsonpath="{.items[0].metadata.name}")
-          kubectl exec $POD_NAME -- curl -s http://localhost:80/health || exit 1

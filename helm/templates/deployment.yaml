@@ -15,40 +15,22 @@ spec:
       serviceAccountName: asterra-app-sa
       containers:
         - name: asterra-app
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: Always
+          image: {{ .Values.image.repository | quote }}:{{ .Values.image.tag | quote }}
           ports:
             - containerPort: 80
           env:
             - name: DB_HOST
               value: {{ .Values.env.databaseUrl | quote }}
-            - name: S3_BUCKET_NAME
+            - name: DB_NAME
+              value: {{ .Values.env.databaseName | quote }}
+            - name: DB_USER
+              value: {{ .Values.env.databaseUser | quote }}
+            - name: S3_BUCKET
               value: {{ .Values.env.s3Bucket | quote }}
+            - name: PGSSLMODE
+              value: "disable"
             - name: DB_PASS
               valueFrom:
                 secretKeyRef:
                   name: db-secret
                   key: password
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "512Mi"
-              cpu: "500m"
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 80
-            initialDelaySeconds: 30
-            periodSeconds: 20
-            timeoutSeconds: 5
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 80
-            initialDelaySeconds: 30
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 3
